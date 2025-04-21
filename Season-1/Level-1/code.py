@@ -12,28 +12,46 @@ Follow the instructions below to get started:
 '''
 
 from collections import namedtuple
+from decimal import Decimal, InvalidOperation, getcontext
+
+getcontext().prec = 28
 
 Order = namedtuple('Order', 'id, items')
-Item = namedtuple('Item', 'type, description, amount, quantity')
+Item  = namedtuple('Item', 'type, description, amount, quantity')
 
 def validorder(order: Order):
-    net = 0
+    MAX_ORDER_VOLUME = Decimal('1000000')
+    net              = Decimal('0')
+    volume           = Decimal('0')
 
     for item in order.items:
+        if not isinstance(item.amount, (int, float)):
+            return "Invalid amount"
+
+        try:
+            amt = Decimal(str(item.amount))
+        except (InvalidOperation, ValueError):
+            return "Invalid amount"
+
         if item.type == 'payment':
-            if not isinstance(item.amount, (int, float)):
-                return "Invalid amount in payment item"
-            net += item.amount
+            net    += amt
+            volume += abs(amt)
 
         elif item.type == 'product':
-            if not isinstance(item.amount, (int, float)) or not isinstance(item.quantity, int):
-                return "Invalid amount or quantity in product item"
-            net -= item.amount * item.quantity
+            if not isinstance(item.quantity, int):
+                return "Invalid quantity"
+
+            subtotal = amt * item.quantity
+            net     -= subtotal
+            volume  += abs(subtotal)
 
         else:
-            return "Invalid item type: %s" % item.type
+            return f"Invalid item type: {item.type}"
+
+    if net == 0 and volume > MAX_ORDER_VOLUME:
+        return "Total amount payable for an order exceeded"
 
     if net != 0:
-        return "Order ID: %s - Payment imbalance: $%0.2f" % (order.id, net)
-    else:
-        return "Order ID: %s - Full payment received!" % order.id
+        return f"Order ID: {order.id} - Payment imbalance: ${net:0.2f}"
+
+    return f"Order ID: {order.id} - Full payment received!"
